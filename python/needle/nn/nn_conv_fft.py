@@ -40,9 +40,11 @@ class ConvFFT(Module):
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
-        res = ops.conv_fft(x, self.weight, stride=self.stride, padding=(self.kernel_size - 1) // 2)
+        xT = x.transpose((1, 2)).transpose((2, 3))
+        res = ops.conv_fft(xT, self.weight, stride=self.stride, padding=(self.kernel_size - 1) // 2)
 
         if self.bias:
-            res += self.bias.reshape((1, self.out_channels, 1, 1)).broadcast_to(res.shape)
+            res += self.bias.reshape((1, 1, 1, self.out_channels)).broadcast_to(res.shape)
 
+        res = res.transpose((2, 3)).transpose((1, 2))
         return res
