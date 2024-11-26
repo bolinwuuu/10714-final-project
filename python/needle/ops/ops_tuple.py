@@ -10,7 +10,7 @@ class MakeTensorTuple(TensorTupleOp):
         return tuple([out_grad[i] for i in range(len(out_grad))])
 
 
-def make_tuple(*args):
+def c(*args):
     return MakeTensorTuple()(*args)
 
 

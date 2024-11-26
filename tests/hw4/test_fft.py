@@ -14,17 +14,28 @@ def test_fft_forward():
     """
     Test the forward computation of FFT.
     """
-    input_tensor = ndl.Tensor([[1.0, 2.0, 3.0, 4.0]])  # Example input
-    np_input = input_tensor.numpy()  # Convert to NumPy array for reference
+    input_tensor = ndl.Tensor([[1.0, 2.0, 3.0, 4.0], [4, 5, 61, 1], [3, 7.6, 4.555, 2.3546]])
+    np_input = input_tensor.numpy()
 
-    # Compute FFT using ndl
-    fft_result = ndl.fft(input_tensor).numpy()
-
-    # Compute FFT using NumPy
     np_fft_result = np.fft.fft(np_input)
+    res = ndl.fft(input_tensor)
 
-    # Assert correctness
-    np.testing.assert_allclose(fft_result, np_fft_result, rtol=1e-5, atol=1e-7)
+    real_result, imag_result = ndl.split(res, 0)
+
+    real_result = real_result.numpy()
+    imag_result = imag_result.numpy()
+
+    fft_result = real_result + 1j * imag_result
+
+    # np_fft_result = np.fft.fft(np_input)
+
+    np.testing.assert_allclose(
+        fft_result,
+        np_fft_result,
+        rtol=1e-5,
+        atol=1e-7,
+        err_msg="The ndl FFT implementation does not match NumPy FFT results."
+    )
 
 
 def test_ifft_forward():

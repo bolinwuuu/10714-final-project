@@ -1,6 +1,7 @@
 import operator
 import math
 from functools import reduce
+from IPython.terminal.shortcuts import reset_search_buffer
 import numpy as np
 from . import ndarray_backend_numpy
 from . import ndarray_backend_cpu
@@ -650,6 +651,61 @@ class NDArray:
         res[self_slice] = self
         return res
         ### END YOUR SOLUTION
+    
+    def fft(self):
+        def _fft_recursive(x):
+            N = x.shape[-1]
+            if N <= 1:
+                return (x, full(x.shape, 0, dtype=x.dtype, device=x.device))  # (real, imag)
+
+            even_slices = [slice(None)] * len(x.shape)
+            odd_slices = [slice(None)] * len(x.shape)
+            even_slices[-1] = slice(0, N, 2)
+            odd_slices[-1] = slice(1, N, 2)
+
+            even_subarr = x[tuple(even_slices)]
+            odd_subarr = x[tuple(odd_slices)]
+
+            even_real, even_imag = _fft_recursive(even_subarr)
+            odd_real, odd_imag = _fft_recursive(odd_subarr)
+
+            res_real = full(x.shape, 0, dtype=x.dtype, device=x.device)
+            res_imag = full(x.shape, 0, dtype=x.dtype, device=x.device)
+
+            for k in range(N // 2):
+                angle = -2 * math.pi * k / N
+                twiddle_real = math.cos(angle)
+                twiddle_imag = math.sin(angle)
+
+                # Create slices for the current index k and k + N//2
+                current_slice = [slice(None)] * len(x.shape)
+                plus_half_slice = [slice(None)] * len(x.shape)
+                current_slice[-1] = slice(k, k + 1)
+                plus_half_slice[-1] = slice(k + N // 2, k + N // 2 + 1)
+
+                # Twiddle factor * odd
+                twiddle_odd_real = twiddle_real * odd_real[tuple(current_slice)] - twiddle_imag * odd_imag[tuple(current_slice)]
+                twiddle_odd_imag = twiddle_real * odd_imag[tuple(current_slice)] + twiddle_imag * odd_real[tuple(current_slice)]
+
+                # Combine even and odd for k
+                res_real[tuple(current_slice)] = even_real[tuple(current_slice)] + twiddle_odd_real
+                res_imag[tuple(current_slice)] = even_imag[tuple(current_slice)] + twiddle_odd_imag
+
+                # Combine even and odd for k + N//2
+                res_real[tuple(plus_half_slice)] = even_real[tuple(current_slice)] - twiddle_odd_real
+                res_imag[tuple(plus_half_slice)] = even_imag[tuple(current_slice)] - twiddle_odd_imag
+          
+            return res_real, res_imag
+
+        real, imag = _fft_recursive(self)
+        res = full((2, *real.shape), 0, dtype=self.dtype, device=self.device)
+        index_slice = [slice(None)] * len(res.shape)
+        index_slice[0] = slice(0, 1, 1)
+        res[tuple(index_slice)] = real
+        index_slice[0] = slice(1, 2, 1)
+        res[tuple(index_slice)] = imag
+        return res
+
 
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
@@ -698,3 +754,6 @@ def sum(a, axis=None, keepdims=False):
 
 def flip(a, axes):
     return a.flip(axes)
+
+def fft(a):
+    return a.fft()
