@@ -23,25 +23,7 @@ def fft(a):
 
 class IFFT(TensorOp):
     def compute(self, a: NDArray):
-        N = a.shape[0]
-
-        if N <= 1:
-            return a
-        
-        res = array_api.full(a.shape, 0, dtype=a.dtype, device=a.device)
-        a_temp = split(a, 0)
-        even = ifft(a_temp[::2])
-        odd = ifft(a_temp[1::2])
-
-        terms = []
-        for n in range(N // 2):
-            terms.append(array_api.exp(2j * math.pi * n / N) * odd[n])
-
-        for k in range(N // 2):
-            res[k] = even[k] + terms[k]
-            res[k + N // 2] = even[k] - terms[k]
-        
-        return res
+        return array_api.ifft(a)
 
     def gradient(self, out_grad: Tensor, node: Tensor):
         return fft(out_grad)

@@ -706,6 +706,110 @@ class NDArray:
         res[tuple(index_slice)] = imag
         return res
 
+    def ifft(self):
+        def _ifft_recursive(real, imag):
+            N = real.shape[-1]
+            if N <= 1:
+                return real, imag  # Base case: single element
+
+            # Split real and imaginary parts into even and odd indices
+            even_slices = [slice(None)] * len(real.shape)
+            odd_slices = [slice(None)] * len(real.shape)
+            even_slices[-1] = slice(0, N, 2)
+            odd_slices[-1] = slice(1, N, 2)
+
+            even_real = real[tuple(even_slices)]
+            even_imag = imag[tuple(even_slices)]
+            odd_real = real[tuple(odd_slices)]
+            odd_imag = imag[tuple(odd_slices)]
+
+            # Recursive call
+            even_real, even_imag = _ifft_recursive(even_real, even_imag)
+            odd_real, odd_imag = _ifft_recursive(odd_real, odd_imag)
+
+            # Initialize result arrays
+            res_real = full(real.shape, 0, dtype=real.dtype, device=real.device)
+            res_imag = full(imag.shape, 0, dtype=imag.dtype, device=imag.device)
+
+            for k in range(N // 2):
+                # Compute the twiddle factors
+                angle = 2 * math.pi * k / N
+                twiddle_real = math.cos(angle)
+                twiddle_imag = math.sin(angle)
+
+                # Combine for current k
+                current_slice = [slice(None)] * len(real.shape)
+                current_slice[-1] = slice(k, k + 1)
+
+                odd_real_part = (
+                    twiddle_real * odd_real[tuple(current_slice)]
+                    + twiddle_imag * odd_imag[tuple(current_slice)]
+                )
+                odd_imag_part = (
+                    twiddle_real * odd_imag[tuple(current_slice)]
+                    - twiddle_imag * odd_real[tuple(current_slice)]
+                )
+
+                res_real[tuple(current_slice)] = (
+                    even_real[tuple(current_slice)] + odd_real_part
+                )
+                res_imag[tuple(current_slice)] = (
+                    even_imag[tuple(current_slice)] + odd_imag_part
+                )
+
+                # Combine for k + N/2
+                plus_half_slice = [slice(None)] * len(real.shape)
+                plus_half_slice[-1] = slice(k + N // 2, k + N // 2 + 1)
+
+                res_real[tuple(plus_half_slice)] = (
+                    even_real[tuple(current_slice)] - odd_real_part
+                )
+                res_imag[tuple(plus_half_slice)] = (
+                    even_imag[tuple(current_slice)] - odd_imag_part
+                )
+
+            return res_real, res_imag
+
+        # Extract real and imaginary parts from self
+        index_slice_real = [slice(None)] * len(self.shape)
+        index_slice_imag = [slice(None)] * len(self.shape)
+        index_slice_real[0] = slice(0, 1)  # First channel for real part
+        index_slice_imag[0] = slice(1, 2)  # Second channel for imaginary part
+
+        real = self[tuple(index_slice_real)].reshape(tuple(list(self.shape)[1:]))
+        imag = self[tuple(index_slice_imag)].reshape(tuple(list(self.shape)[1:]))
+
+        # Perform IFFT
+        res_real, res_imag = _ifft_recursive(real, imag)
+        res_real /= res_real.shape[-1]
+        res_imag /= res_imag.shape[-1]
+
+        res = full((2, *real.shape), 0, dtype=self.dtype, device=self.device)
+        index_slice = [slice(None)] * len(res.shape)
+        index_slice[0] = slice(0, 1, 1)
+        res[tuple(index_slice)] = res_real
+        index_slice[0] = slice(1, 2, 1)
+        res[tuple(index_slice)] = res_imag
+
+        res = res.flip((len(res.shape) - 1,))
+
+        res2 = full(res.shape, 0, dtype=self.dtype, device=self.device)
+        res_slice = [slice(None)] * len(res.shape)
+        res_slice[-1] = slice(res.shape[-1] - 1, res.shape[-1], 1)
+
+        res2_slice = [slice(None)] * len(res2.shape)
+        res2_slice[-1] = slice(0, 1, 1)
+        res2[tuple(res2_slice)] = res[tuple(res_slice)]
+
+        res_slice[-1] = slice(0, res.shape[-1] - 1, 1)
+        res2_slice[-1] = slice(1, res.shape[-1], 1)
+        res2[tuple(res2_slice)] = res[tuple(res_slice)]
+        return res2
+        
+        # print(f'{self.shape=}, {res_real.shape=}')
+        # return res_real, res_imag
+
+
 
 def array(a, dtype="float32", device=None):
     """Convenience methods to match numpy a bit more closely."""
@@ -757,3 +861,6 @@ def flip(a, axes):
 
 def fft(a):
     return a.fft()
+
+def ifft(a):
+    return a.ifft()

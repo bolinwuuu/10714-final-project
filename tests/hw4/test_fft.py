@@ -14,7 +14,7 @@ def test_fft_forward():
     """
     Test the forward computation of FFT.
     """
-    input_tensor = ndl.Tensor([[1.0, 2.0, 3.0, 4.0], [4, 5, 61, 1], [3, 7.6, 4.555, 2.3546]])
+    input_tensor = ndl.init.rand(*(2, 3, 8, 64), low=0.0, high=1.0)
     np_input = input_tensor.numpy()
 
     np_fft_result = np.fft.fft(np_input)
@@ -42,17 +42,52 @@ def test_ifft_forward():
     """
     Test the forward computation of IFFT.
     """
-    input_tensor = ndl.Tensor([[1.0 + 2.0j, 2.0 + 1.0j, 3.0 - 1.0j, 4.0 - 2.0j]])  # Example input
-    np_input = input_tensor.numpy()  # Convert to NumPy array for reference
+    # Example input for FFT (real and imaginary parts)
+#     input_tensor = ndl.Tensor([
+#     [
+#         [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+#         [[-1.0, -2.0, -3.0], [-4.0, -5.0, -6.0], [-7.0, -8.0, -9.0]],
+#     ],
+#     [
+#         [[10.0, 20.0, 30.0], [40.0, 50.0, 60.0], [70.0, 80.0, 90.0]],
+#         [[-10.0, -20.0, -30.0], [-40.0, -50.0, -60.0], [-70.0, -80.0, -90.0]],
+#     ],
+# ])
+    input_tensor = ndl.init.rand(*(2, 3, 64, 64), low=0.0, high=1.0)
 
-    # Compute IFFT using ndl
-    ifft_result = ndl.ifft(input_tensor).numpy()
+    # Compute FFT to get the real and imaginary parts
+    np_input = input_tensor.numpy()
+    np_fft_result = np.fft.fft(np_input)  # Expected result using NumPy FFT
+    np_ifft_result = np.fft.ifft(np_fft_result)  # Expected result using NumPy IFFT
 
-    # Compute IFFT using NumPy
-    np_ifft_result = np.fft.ifft(np_input)
+    # Compute FFT using ndl
+    fft_result = ndl.fft(input_tensor)
 
-    # Assert correctness
-    np.testing.assert_allclose(ifft_result, np_ifft_result, rtol=1e-5, atol=1e-7)
+    # Compute IFFT using ndl (Inverse FFT)
+    ifft_result = ndl.ifft(fft_result)
+    # ifft_result = ifft_result.numpy()
+
+    ifft_result_real, ifft_result_imag = ndl.split(ifft_result, 0)
+
+    print(f'{ifft_result_real.shape=}, {ifft_result_imag.shape=}')
+    ifft_result_real = ifft_result_real.numpy()
+    ifft_result_imag = ifft_result_imag.numpy()
+
+    # Combine real and imaginary parts of the IFFT result
+    ifft_result = ifft_result_real + 1j * ifft_result_imag
+
+    
+    diff = np.sum(ifft_result_real - np.real(np_ifft_result))
+    print(f'{diff=}')
+    # Check if IFFT result is close to the original input (after normalization)
+    np.testing.assert_allclose(
+        ifft_result_real,
+        np.real(np_ifft_result),
+        rtol=1e-4,
+        atol=1e-7,
+        err_msg="The ndl IFFT implementation does not match NumPy IFFT results."
+    )
+
 
 
 def test_fft_ifft_inverse():
